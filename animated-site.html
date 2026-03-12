@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXIOM — Interactive Experience</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #050508;
+    --fg: #f0ece4;
+    --accent: #ff4d1c;
+    --accent2: #00e5ff;
+    --mid: #1a1a2e;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: auto; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Syne', sans-serif;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* ── CUSTOM CURSOR ── */
+  #cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width .2s, height .2s, background .2s;
+    mix-blend-mode: difference;
+  }
+  #cursor-ring {
+    position: fixed;
+    width: 40px; height: 40px;
+    border: 1px solid rgba(240,236,228,.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: width .4s, height .4s, border-color .3s;
+  }
+  body:has(a:hover) #cursor, body:has(button:hover) #cursor { width: 20px; height: 20px; background: var(--accent2); }
+  body:has(a:hover) #cursor-ring, body:has(button:hover) #cursor-ring { width: 60px; height: 60px; border-color: var(--accent2); }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 9997;
+  }
+
+  /* ── SMOOTH SCROLL WRAPPER ── */
+  #scroll-container { will-change: transform; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 2rem 3rem;
+    display: flex; justify-content: space-between; align-items: center;
+    mix-blend-mode: difference;
+  }
+  .nav-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: .15em;
+    color: var(--fg);
+  }
+  .nav-links { display: flex; gap: 2.5rem; }
+  .nav-links a {
+    color: var(--fg);
+    text-decoration: none;
+    font-size: .75rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    cursor: none;
+    position: relative;
+  }
+  .nav-links a::after {
+    content: '';
+    position: absolute; bottom: -3px; left: 0;
+    width: 0; height: 1px;
+    background: var(--fg);
+    transition: width .4s cubic-bezier(.77,0,.175,1);
+  }
+  .nav-links a:hover::after { width: 100%; }
+
+  /* ── HERO ── */
+  #hero {
+    height: 100vh;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 0 3rem 4rem;
+    position: relative;
+    overflow: hidden;
+  }
+  #webgl-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+  .hero-eyebrow {
+    font-size: .7rem;
+    letter-spacing: .4em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+  }
+  .hero-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(5rem, 14vw, 16rem);
+    line-height: .9;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+  }
+  .hero-title .line { display: block; overflow: hidden; }
+  .hero-title .line span { display: block; transform: translateY(110%); }
+  .hero-subtitle {
+    max-width: 380px;
+    font-size: .95rem;
+    line-height: 1.7;
+    color: rgba(240,236,228,.55);
+    margin-top: 2rem;
+    opacity: 0;
+    z-index: 2;
+    position: relative;
+  }
+  .hero-scroll-hint {
+    position: absolute;
+    bottom: 2.5rem; right: 3rem;
+    font-size: .65rem;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: rgba(240,236,228,.35);
+    writing-mode: vertical-rl;
+    opacity: 0;
+  }
+  .hero-scroll-hint::before {
+    content: '';
+    display: block;
+    width: 1px; height: 60px;
+    background: var(--accent);
+    margin: 0 auto 1rem;
+    animation: scrollLine 2s ease-in-out infinite;
+  }
+  @keyframes scrollLine {
+    0%, 100% { transform: scaleY(0); transform-origin: top; }
+    50% { transform: scaleY(1); transform-origin: top; }
+    51% { transform-origin: bottom; }
+  }
+
+  /* ── MARQUEE ── */
+  .marquee-wrap {
+    overflow: hidden;
+    border-top: 1px solid rgba(240,236,228,.08);
+    border-bottom: 1px solid rgba(240,236,228,.08);
+    padding: 1.2rem 0;
+    background: var(--accent);
+  }
+  .marquee-track {
+    display: flex; gap: 3rem;
+    width: max-content;
+    animation: marquee 18s linear infinite;
+  }
+  .marquee-item {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: .15em;
+    white-space: nowrap;
+    color: var(--bg);
+  }
+  .marquee-dot { color: var(--bg); opacity: .4; }
+  @keyframes marquee { to { transform: translateX(-50%); } }
+
+  /* ── SECTIONS ── */
+  section { position: relative; }
+
+  /* ── ABOUT ── */
+  #about {
+    min-height: 100vh;
+    padding: 10rem 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+    align-items: center;
+  }
+  .about-number {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12rem;
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(240,236,228,.1);
+    position: absolute;
+    top: 6rem; left: 2rem;
+    pointer-events: none;
+  }
+  .about-heading {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1.1;
+    font-style: italic;
+  }
+  .about-heading em { color: var(--accent); font-style: normal; }
+  .about-body {
+    font-size: 1rem;
+    line-height: 1.9;
+    color: rgba(240,236,228,.6);
+  }
+  .about-body p + p { margin-top: 1.5rem; }
+  .split-line { overflow: hidden; }
+  .split-line span { display: block; }
+
+  /* ── STATS ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: .5px;
+    background: rgba(240,236,228,.08);
+    margin: 0 3rem;
+  }
+  .stat-item {
+    background: var(--bg);
+    padding: 3.5rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-item::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 3px; height: 0;
+    background: var(--accent);
+    transition: height .6s ease;
+  }
+  .stat-item:hover::before { height: 100%; }
+  .stat-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 4.5rem;
+    line-height: 1;
+    color: var(--fg);
+  }
+  .stat-num span { color: var(--accent); }
+  .stat-label {
+    margin-top: .75rem;
+    font-size: .7rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: rgba(240,236,228,.4);
+  }
+
+  /* ── HORIZONTAL SCROLL ── */
+  #works { padding: 8rem 0; }
+  .works-header {
+    padding: 0 3rem 4rem;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .works-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3rem, 8vw, 7rem);
+    line-height: 1;
+  }
+  .works-count {
+    font-size: .7rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: rgba(240,236,228,.4);
+  }
+  #h-scroll-outer {
+    overflow: hidden;
+    position: relative;
+  }
+  #h-scroll-track {
+    display: flex;
+    gap: 2rem;
+    padding: 0 3rem;
+    width: max-content;
+  }
+  .work-card {
+    width: 380px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+  }
+  .work-card-inner {
+    height: 520px;
+    position: relative;
+    overflow: hidden;
+    background: var(--mid);
+  }
+  .card-bg {
+    position: absolute; inset: 0;
+    transition: transform .8s cubic-bezier(.77,0,.175,1);
+  }
+  .work-card:hover .card-bg { transform: scale(1.08); }
+  .card-gradient {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(5,5,8,.9) 0%, transparent 60%);
+  }
+  .card-info {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 2rem;
+    transform: translateY(10px);
+    transition: transform .5s ease;
+  }
+  .work-card:hover .card-info { transform: translateY(0); }
+  .card-tag {
+    font-size: .6rem;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: .5rem;
+  }
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    font-style: italic;
+  }
+  .card-arrow {
+    position: absolute; top: 1.5rem; right: 1.5rem;
+    width: 40px; height: 40px;
+    border: 1px solid rgba(240,236,228,.2);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    opacity: 0;
+    transform: rotate(-45deg) scale(.8);
+    transition: opacity .4s, transform .4s;
+  }
+  .work-card:hover .card-arrow { opacity: 1; transform: rotate(0) scale(1); }
+
+  /* Card colors */
+  .card-bg-1 { background: linear-gradient(135deg, #0f1a2e 0%, #1a0a2e 100%); }
+  .card-bg-2 { background: linear-gradient(135deg, #1a0a08 0%, #2e1a08 100%); }
+  .card-bg-3 { background: linear-gradient(135deg, #081a0a 0%, #0a2e1a 100%); }
+  .card-bg-4 { background: linear-gradient(135deg, #1a1a08 0%, #2e2a08 100%); }
+  .card-visual {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    opacity: .3;
+  }
+  .card-shape {
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    transition: transform 1s ease;
+  }
+  .work-card:hover .card-shape { transform: scale(1.3) rotate(20deg); }
+  .shape-1 { background: radial-gradient(circle, var(--accent2), transparent); }
+  .shape-2 { background: radial-gradient(circle, var(--accent), transparent); border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+  .shape-3 { background: radial-gradient(circle, #7fff00, transparent); border-radius: 0; transform: rotate(45deg); }
+  .shape-4 { background: radial-gradient(circle, #ff88cc, transparent); clip-path: polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%); }
+
+  /* ── PROCESS ── */
+  #process {
+    padding: 10rem 3rem;
+  }
+  .process-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 6rem;
+  }
+  .process-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3rem, 8vw, 7rem);
+    line-height: .95;
+  }
+  .process-desc {
+    max-width: 300px;
+    font-size: .9rem;
+    line-height: 1.8;
+    color: rgba(240,236,228,.5);
+    padding-top: 1rem;
+  }
+  .process-list { counter-reset: step; }
+  .process-step {
+    counter-increment: step;
+    border-top: 1px solid rgba(240,236,228,.1);
+    padding: 2.5rem 0;
+    display: grid;
+    grid-template-columns: 80px 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+    transition: padding .4s ease;
+    cursor: none;
+    overflow: hidden;
+  }
+  .process-step:hover { padding-left: 1.5rem; }
+  .step-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem;
+    color: var(--accent);
+    letter-spacing: .1em;
+  }
+  .step-num::before { content: counter(step, decimal-leading-zero); }
+  .step-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    font-style: italic;
+  }
+  .step-desc {
+    font-size: .85rem;
+    line-height: 1.8;
+    color: rgba(240,236,228,.5);
+  }
+  .process-step:last-child { border-bottom: 1px solid rgba(240,236,228,.1); }
+
+  /* ── PARALLAX SECTION ── */
+  #parallax-section {
+    height: 80vh;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .parallax-bg {
+    position: absolute; inset: -20%;
+    background: radial-gradient(ellipse 80% 60% at 50% 50%, #1a0a2e 0%, var(--bg) 70%);
+  }
+  .parallax-rings {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(240,236,228,.06);
+    aspect-ratio: 1;
+  }
+  .ring-1 { width: 200px; }
+  .ring-2 { width: 400px; }
+  .ring-3 { width: 600px; }
+  .ring-4 { width: 800px; }
+  .ring-5 { width: 1000px; }
+  .parallax-content { position: relative; z-index: 2; }
+  .parallax-quote {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 5vw, 4.5rem);
+    line-height: 1.2;
+    max-width: 800px;
+    font-style: italic;
+  }
+  .parallax-quote em { color: var(--accent); font-style: normal; }
+  .parallax-author {
+    margin-top: 2rem;
+    font-size: .7rem;
+    letter-spacing: .35em;
+    text-transform: uppercase;
+    color: rgba(240,236,228,.35);
+  }
+
+  /* ── CTA ── */
+  #cta {
+    padding: 10rem 3rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 3rem;
+    border-top: 1px solid rgba(240,236,228,.08);
+  }
+  .cta-heading {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3.5rem, 10vw, 9rem);
+    line-height: .9;
+  }
+  .cta-heading span {
+    display: block;
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(240,236,228,.25);
+    transition: color .4s, -webkit-text-stroke .4s;
+  }
+  .cta-heading span:hover {
+    color: var(--fg);
+    -webkit-text-stroke: 0px;
+  }
+  .cta-btn {
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'Syne', sans-serif;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    cursor: none;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: transform .4s cubic-bezier(.77,0,.175,1);
+  }
+  .cta-btn:hover { transform: scale(1.1); }
+  .cta-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--accent2);
+    transform: translateY(100%);
+    transition: transform .5s cubic-bezier(.77,0,.175,1);
+  }
+  .cta-btn:hover::before { transform: translateY(0); }
+  .cta-btn span { position: relative; z-index: 1; }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 2rem 3rem;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid rgba(240,236,228,.06);
+    font-size: .65rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: rgba(240,236,228,.25);
+  }
+
+  /* ── PAGE TRANSITION ── */
+  #page-transition {
+    position: fixed; inset: 0;
+    z-index: 9000;
+    pointer-events: none;
+    display: flex;
+  }
+  .pt-panel {
+    flex: 1;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+
+  /* ── LOADER ── */
+  #loader {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2rem;
+  }
+  .loader-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3rem, 10vw, 8rem);
+    letter-spacing: .1em;
+    overflow: hidden;
+  }
+  .loader-text span { display: block; }
+  .loader-bar-wrap {
+    width: 200px; height: 1px;
+    background: rgba(240,236,228,.1);
+    position: relative;
+  }
+  .loader-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width .05s linear;
+  }
+  .loader-percent {
+    font-size: .7rem;
+    letter-spacing: .3em;
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-text"><span id="loader-label">LOADING</span></div>
+  <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
+  <div class="loader-percent"><span id="loader-num">0</span>%</div>
+</div>
+
+<!-- PAGE TRANSITION PANELS -->
+<div id="page-transition">
+  <div class="pt-panel"></div>
+  <div class="pt-panel"></div>
+  <div class="pt-panel"></div>
+  <div class="pt-panel"></div>
+  <div class="pt-panel"></div>
+</div>
+
+<!-- CURSOR -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- SCROLL CONTAINER -->
+<div id="scroll-container">
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">Axiom</div>
+    <div class="nav-links">
+      <a href="#about" cursor-none>Work</a>
+      <a href="#process">Process</a>
+      <a href="#cta">Contact</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section id="hero">
+    <canvas id="webgl-canvas"></canvas>
+    <p class="hero-eyebrow">Creative Studio — Est. 2024</p>
+    <h1 class="hero-title">
+      <span class="line"><span>We Build</span></span>
+      <span class="line"><span>Digital</span></span>
+      <span class="line"><span id="hero-accent" style="color:var(--accent)">Worlds.</span></span>
+    </h1>
+    <p class="hero-subtitle">Crafting immersive digital experiences that push the boundaries of what's possible on the web.</p>
+    <div class="hero-scroll-hint">Scroll</div>
+  </section>
+
+  <!-- MARQUEE -->
+  <div class="marquee-wrap">
+    <div class="marquee-track">
+      <span class="marquee-item">WebGL Experiences</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Scroll Animations</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">3D Interfaces</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Creative Development</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Motion Design</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">WebGL Experiences</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Scroll Animations</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">3D Interfaces</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Creative Development</span>
+      <span class="marquee-dot">✦</span>
+      <span class="marquee-item">Motion Design</span>
+      <span class="marquee-dot">✦</span>
+    </div>
+  </div>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <div class="about-number">01</div>
+    <div>
+      <h2 class="about-heading">
+        <div class="split-line"><span>We are</span></div>
+        <div class="split-line"><span>obsessed</span></div>
+        <div class="split-line"><span>with <em>craft.</em></span></div>
+      </h2>
+    </div>
+    <div class="about-body">
+      <p>We are a collective of designers and developers who believe that the web should be a place of wonder. Every pixel, every interaction, every microsecond of animation is an opportunity to surprise and delight.</p>
+      <p>Our work lives at the intersection of technology and art — where code becomes canvas and browsers become theaters. We don't just build websites. We build experiences that stay with people.</p>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-num"><span id="stat1">0</span>+</div>
+      <div class="stat-label">Projects Delivered</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num"><span id="stat2">0</span>M</div>
+      <div class="stat-label">Users Reached</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num"><span id="stat3">0</span></div>
+      <div class="stat-label">Awwwards Won</div>
+    </div>
+  </div>
+
+  <!-- WORKS -->
+  <section id="works">
+    <div class="works-header">
+      <h2 class="works-title">Selected<br>Work</h2>
+      <div class="works-count">04 Projects</div>
+    </div>
+    <div id="h-scroll-outer">
+      <div id="h-scroll-track">
+        <div class="work-card">
+          <div class="work-card-inner">
+            <div class="card-bg card-bg-1">
+              <div class="card-visual"><div class="card-shape shape-1"></div></div>
+            </div>
+            <div class="card-gradient"></div>
+            <div class="card-info">
+              <div class="card-tag">Brand Identity</div>
+              <div class="card-title">Nebula Design System</div>
+            </div>
+            <div class="card-arrow">↗</div>
+          </div>
+        </div>
+        <div class="work-card">
+          <div class="work-card-inner">
+            <div class="card-bg card-bg-2">
+              <div class="card-visual"><div class="card-shape shape-2"></div></div>
+            </div>
+            <div class="card-gradient"></div>
+            <div class="card-info">
+              <div class="card-tag">WebGL / 3D</div>
+              <div class="card-title">Ignite Product Launch</div>
+            </div>
+            <div class="card-arrow">↗</div>
+          </div>
+        </div>
+        <div class="work-card">
+          <div class="work-card-inner">
+            <div class="card-bg card-bg-3">
+              <div class="card-visual"><div class="card-shape shape-3"></div></div>
+            </div>
+            <div class="card-gradient"></div>
+            <div class="card-info">
+              <div class="card-tag">Digital Experience</div>
+              <div class="card-title">Verdant Annual Report</div>
+            </div>
+            <div class="card-arrow">↗</div>
+          </div>
+        </div>
+        <div class="work-card">
+          <div class="work-card-inner">
+            <div class="card-bg card-bg-4">
+              <div class="card-visual"><div class="card-shape shape-4"></div></div>
+            </div>
+            <div class="card-gradient"></div>
+            <div class="card-info">
+              <div class="card-tag">E-Commerce</div>
+              <div class="card-title">Lumière Luxury Shop</div>
+            </div>
+            <div class="card-arrow">↗</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PARALLAX -->
+  <section id="parallax-section">
+    <div class="parallax-bg" id="para-bg"></div>
+    <div class="parallax-rings">
+      <div class="ring ring-1" id="ring1"></div>
+      <div class="ring ring-2" id="ring2"></div>
+      <div class="ring ring-3" id="ring3"></div>
+      <div class="ring ring-4" id="ring4"></div>
+      <div class="ring ring-5" id="ring5"></div>
+    </div>
+    <div class="parallax-content">
+      <p class="parallax-quote">"The best interfaces <em>disappear.</em> What remains is pure emotion and memory."</p>
+      <p class="parallax-author">— Design Manifesto, 2024</p>
+    </div>
+  </section>
+
+  <!-- PROCESS -->
+  <section id="process">
+    <div class="process-header">
+      <h2 class="process-title">How We<br>Work</h2>
+      <p class="process-desc">A refined process honed over years of building world-class digital experiences.</p>
+    </div>
+    <div class="process-list">
+      <div class="process-step">
+        <div class="step-num"></div>
+        <div class="step-name">Discovery</div>
+        <div class="step-desc">Deep dive into your brand, audience, and ambitions. We ask uncomfortable questions because that's where the good stuff lives.</div>
+      </div>
+      <div class="process-step">
+        <div class="step-num"></div>
+        <div class="step-name">Concept</div>
+        <div class="step-desc">We explore wild, unexpected directions before refining toward the single most powerful idea.</div>
+      </div>
+      <div class="process-step">
+        <div class="step-num"></div>
+        <div class="step-name">Build</div>
+        <div class="step-desc">Code meets craft. Every animation eased, every transition considered, every interaction deliberate.</div>
+      </div>
+      <div class="process-step">
+        <div class="step-num"></div>
+        <div class="step-name">Launch</div>
+        <div class="step-desc">Not just a deployment — a moment. We treat every launch as a cultural event.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta">
+    <div class="cta-heading">
+      <span>Start a</span>
+      <span>Project</span>
+    </div>
+    <button class="cta-btn"><span>Let's Talk ↗</span></button>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>© 2024 Axiom Studio</span>
+    <span>Bengaluru, India</span>
+    <span>All Systems Go</span>
+  </footer>
+
+</div><!-- /scroll-container -->
+
+<script>
+// ── REGISTER GSAP PLUGINS ──
+gsap.registerPlugin(ScrollTrigger);
+
+// ── SMOOTH SCROLL (Lenis-style via GSAP) ──
+let scrollY = 0, currentY = 0, ease = 0.09;
+const container = document.getElementById('scroll-container');
+
+// Use native scroll but add smooth lerp feel
+function smoothScroll() {
+  currentY += (scrollY - currentY) * ease;
+  container.style.transform = `translateY(${-currentY}px)`;
+  requestAnimationFrame(smoothScroll);
+  ScrollTrigger.update();
+}
+
+// Set up virtual scroll
+document.body.style.height = container.scrollHeight + 'px';
+document.body.style.overflow = 'hidden';
+window.addEventListener('scroll', () => { scrollY = window.scrollY; });
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  scrollY = Math.max(0, Math.min(scrollY + e.deltaY * 1.2, container.scrollHeight - window.innerHeight));
+}, { passive: false });
+container.style.position = 'fixed';
+container.style.top = '0'; container.style.left = '0'; container.style.width = '100%';
+
+// Override ScrollTrigger to use our virtual scroll
+ScrollTrigger.scrollerProxy(container, {
+  scrollTop(val) {
+    if (arguments.length) currentY = val;
+    return currentY;
+  },
+  getBoundingClientRect() {
+    return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
+  },
+  pinType: container.style.transform ? "transform" : "fixed"
+});
+
+ScrollTrigger.addEventListener("refresh", () => {
+  document.body.style.height = container.scrollHeight + 'px';
+});
+ScrollTrigger.refresh();
+
+smoothScroll();
+
+// ── CURSOR ──
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let cx = 0, cy = 0, rx = 0, ry = 0;
+window.addEventListener('mousemove', e => { cx = e.clientX; cy = e.clientY; });
+function animCursor() {
+  cursor.style.left = cx + 'px'; cursor.style.top = cy + 'px';
+  rx += (cx - rx) * 0.12; ry += (cy - ry) * 0.12;
+  ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+  requestAnimationFrame(animCursor);
+}
+animCursor();
+
+// ── THREE.JS WEBGL HERO ──
+(function() {
+  const canvas = document.getElementById('webgl-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.z = 3;
+
+  // Particle field
+  const count = 3500;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i*3]   = (Math.random() - 0.5) * 12;
+    positions[i*3+1] = (Math.random() - 0.5) * 12;
+    positions[i*3+2] = (Math.random() - 0.5) * 8;
+    const t = Math.random();
+    if (t < 0.3) { colors[i*3]=1; colors[i*3+1]=.3; colors[i*3+2]=.11; }
+    else if (t < 0.5) { colors[i*3]=0; colors[i*3+1]=.9; colors[i*3+2]=1; }
+    else { colors[i*3]=.94; colors[i*3+1]=.93; colors[i*3+2]=.89; }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: .018, vertexColors: true, transparent: true, opacity: .7 });
+  const particles = new THREE.Points(geo, mat);
+  scene.add(particles);
+
+  // Floating torus
+  const torusGeo = new THREE.TorusGeometry(1, 0.3, 16, 100);
+  const torusMat = new THREE.MeshBasicMaterial({ color: 0xff4d1c, wireframe: true, opacity: .12, transparent: true });
+  const torus = new THREE.Mesh(torusGeo, torusMat);
+  scene.add(torus);
+
+  // Icosahedron
+  const icoGeo = new THREE.IcosahedronGeometry(.6, 1);
+  const icoMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true, opacity: .18, transparent: true });
+  const ico = new THREE.Mesh(icoGeo, icoMat);
+  ico.position.set(2, -.5, -1);
+  scene.add(ico);
+
+  let mouse = { x: 0, y: 0 };
+  window.addEventListener('mousemove', e => {
+    mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  let t = 0;
+  function render() {
+    t += 0.005;
+    particles.rotation.y = t * .08 + mouse.x * .08;
+    particles.rotation.x = mouse.y * .05;
+    torus.rotation.x = t * .3;
+    torus.rotation.y = t * .5 + mouse.x * .3;
+    ico.rotation.x = t * .4;
+    ico.rotation.y = t * .6;
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+  }
+  render();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+})();
+
+// ── LOADER ──
+const loaderBar = document.getElementById('loader-bar');
+const loaderNum = document.getElementById('loader-num');
+let prog = 0;
+const loaderInt = setInterval(() => {
+  prog += Math.random() * 18;
+  if (prog >= 100) {
+    prog = 100;
+    clearInterval(loaderInt);
+    setTimeout(() => {
+      gsap.to('#loader', {
+        yPercent: -100,
+        duration: .9,
+        ease: 'power4.inOut',
+        onComplete: () => {
+          document.getElementById('loader').style.display = 'none';
+          initAnimations();
+        }
+      });
+    }, 200);
+  }
+  loaderBar.style.width = prog + '%';
+  loaderNum.textContent = Math.floor(prog);
+}, 80);
+
+// ── MAIN ANIMATIONS ──
+function initAnimations() {
+
+  // Hero entrance
+  gsap.to('.hero-eyebrow', { opacity: 1, y: 0, duration: 1, delay: .3, ease: 'power3.out' });
+  gsap.to('.hero-title .line span', {
+    y: 0,
+    duration: 1.2,
+    stagger: .12,
+    ease: 'power4.out',
+    delay: .5
+  });
+  gsap.to('.hero-subtitle', { opacity: 1, y: 0, duration: 1, delay: 1.1, ease: 'power3.out' });
+  gsap.to('.hero-scroll-hint', { opacity: 1, duration: 1, delay: 1.6 });
+
+  // Nav entrance
+  gsap.from('nav', { y: -30, opacity: 0, duration: 1, delay: .2, ease: 'power3.out' });
+
+  // About text reveal
+  gsap.utils.toArray('.about-heading .split-line span').forEach((el, i) => {
+    gsap.from(el, {
+      y: '100%',
+      duration: .9,
+      ease: 'power3.out',
+      scrollTrigger: {
+        trigger: el,
+        scroller: container,
+        start: 'top 88%',
+      },
+      delay: i * .08
+    });
+  });
+
+  // About body
+  gsap.from('.about-body', {
+    opacity: 0, y: 40,
+    duration: 1,
+    ease: 'power3.out',
+    scrollTrigger: { trigger: '.about-body', scroller: container, start: 'top 85%' }
+  });
+
+  // About number parallax
+  gsap.to('.about-number', {
+    y: -120,
+    scrollTrigger: {
+      trigger: '#about',
+      scroller: container,
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: 1.5
+    }
+  });
+
+  // Stats counter
+  function countUp(id, target, duration) {
+    const el = document.getElementById(id);
+    gsap.to({ val: 0 }, {
+      val: target,
+      duration,
+      ease: 'power2.out',
+      onUpdate: function() { el.textContent = Math.round(this.targets()[0].val); },
+      scrollTrigger: { trigger: '.stats-grid', scroller: container, start: 'top 80%', once: true }
+    });
+  }
+  countUp('stat1', 240, 1.8);
+  countUp('stat2', 18, 1.6);
+  countUp('stat3', 12, 1.5);
+
+  // Stat items stagger in
+  gsap.from('.stat-item', {
+    opacity: 0, y: 30,
+    duration: .8,
+    stagger: .12,
+    ease: 'power3.out',
+    scrollTrigger: { trigger: '.stats-grid', scroller: container, start: 'top 82%' }
+  });
+
+  // Horizontal scroll for works
+  const track = document.getElementById('h-scroll-track');
+  const trackWidth = track.scrollWidth;
+  const viewportW = window.innerWidth;
+
+  gsap.to(track, {
+    x: -(trackWidth - viewportW + 96),
+    ease: 'none',
+    scrollTrigger: {
+      trigger: '#h-scroll-outer',
+      scroller: container,
+      start: 'top top',
+      end: () => '+=' + (trackWidth - viewportW + 200),
+      pin: true,
+      scrub: 1.2,
+    }
+  });
+
+  // Cards stagger fade
+  gsap.from('.work-card', {
+    opacity: 0, x: 60,
+    stagger: .15,
+    duration: .8,
+    ease: 'power3.out',
+    scrollTrigger: { trigger: '#h-scroll-outer', scroller: container, start: 'top 90%' }
+  });
+
+  // Parallax rings
+  [
+    { el: '#ring1', speed: 1.5 },
+    { el: '#ring2', speed: 1 },
+    { el: '#ring3', speed: .6 },
+    { el: '#ring4', speed: .3 },
+    { el: '#ring5', speed: .1 },
+  ].forEach(({ el, speed }) => {
+    gsap.to(el, {
+      scale: 1 + speed * .6,
+      opacity: 0,
+      scrollTrigger: {
+        trigger: '#parallax-section',
+        scroller: container,
+        start: 'top bottom',
+        end: 'bottom top',
+        scrub: 1.5
+      }
+    });
+  });
+
+  // Parallax bg
+  gsap.to('#para-bg', {
+    yPercent: 30,
+    scrollTrigger: {
+      trigger: '#parallax-section',
+      scroller: container,
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: 2
+    }
+  });
+
+  // Quote reveal
+  gsap.from('.parallax-quote', {
+    opacity: 0, y: 50, scale: .97,
+    duration: 1.2,
+    ease: 'power3.out',
+    scrollTrigger: { trigger: '#parallax-section', scroller: container, start: 'top 60%' }
+  });
+
+  // Process steps
+  gsap.utils.toArray('.process-step').forEach((step, i) => {
+    gsap.from(step, {
+      opacity: 0, x: -30,
+      duration: .7,
+      ease: 'power3.out',
+      delay: i * .06,
+      scrollTrigger: { trigger: step, scroller: container, start: 'top 88%' }
+    });
+  });
+
+  // CTA heading
+  gsap.from('.cta-heading span', {
+    opacity: 0, y: 60,
+    stagger: .1,
+    duration: 1,
+    ease: 'power3.out',
+    scrollTrigger: { trigger: '#cta', scroller: container, start: 'top 80%' }
+  });
+  gsap.from('.cta-btn', {
+    scale: 0, opacity: 0,
+    duration: .8,
+    ease: 'back.out(1.7)',
+    scrollTrigger: { trigger: '#cta', scroller: container, start: 'top 80%' }
+  });
+
+  // Mouse parallax on rings during scroll
+  window.addEventListener('mousemove', e => {
+    const mx = (e.clientX / window.innerWidth - .5);
+    const my = (e.clientY / window.innerHeight - .5);
+    gsap.to('#ring1', { x: mx * 40, y: my * 40, duration: 1.5, ease: 'power2.out' });
+    gsap.to('#ring2', { x: mx * 25, y: my * 25, duration: 1.5, ease: 'power2.out' });
+    gsap.to('#ring3', { x: mx * 15, y: my * 15, duration: 1.5, ease: 'power2.out' });
+  });
+
+  // Hero title hover
+  document.querySelector('#hero-accent').addEventListener('mouseenter', () => {
+    gsap.to('#hero-accent', { skewX: -8, duration: .3, ease: 'power2.out' });
+  });
+  document.querySelector('#hero-accent').addEventListener('mouseleave', () => {
+    gsap.to('#hero-accent', { skewX: 0, duration: .5, ease: 'elastic.out(1,.5)' });
+  });
+
+  // Page transition on links
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = link.getAttribute('href');
+      const panels = document.querySelectorAll('.pt-panel');
+      gsap.to(panels, {
+        scaleY: 1,
+        duration: .6,
+        stagger: .06,
+        ease: 'power4.inOut',
+        onComplete: () => {
+          const targetEl = document.querySelector(target);
+          if (targetEl) {
+            const offset = targetEl.offsetTop;
+            gsap.to(window, { scrollTo: offset, duration: 0 });
+            scrollY = offset; currentY = offset;
+          }
+          gsap.to(panels, {
+            scaleY: 0,
+            transformOrigin: 'top',
+            duration: .6,
+            stagger: .05,
+            ease: 'power4.inOut',
+            delay: .1
+          });
+        }
+      });
+    });
+  });
+
+  // CTA button
+  document.querySelector('.cta-btn').addEventListener('click', () => {
+    gsap.to('.cta-btn', {
+      rotation: 360, duration: .6, ease: 'power2.inOut',
+      onComplete: () => gsap.set('.cta-btn', { rotation: 0 })
+    });
+  });
+}
+</script>
+</body>
+</html>
